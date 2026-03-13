@@ -24,22 +24,55 @@ def calculate_co2_costs(co2_df: pd.DataFrame, training_df: pd.DataFrame, cols):
             total_co2_emissions_lower.append(co2_emissions_users_lower)
             total_co2_emissions_upper.append(co2_emissions_users_upper)
 
+    sf_ny_roundtrip_flights_co2_tons_per_pass = 180.4
+    czech_residents_emissions_tons_per_capita = 7.04
+
+    opp_cost_co2_emissions_flights = []
+    opp_cost_co2_emissions_czech_residents = []
+
+    actual_co2_emissions = []
+
+    for i in total_co2_emissions_lower:
+        opp_cost_co2_emissions_flights.append((i/66)/sf_ny_roundtrip_flights_co2_tons_per_pass)
+        opp_cost_co2_emissions_czech_residents.append((i/66)/czech_residents_emissions_tons_per_capita)
+        actual_co2_emissions.append(i/66)
+
     #plot the social cost of estimated monthly co2 emissions and place the bar charts next to each other, 
     #making sure that they do not overlap 
+    #also plotting for the opportunity costs of co2 emissions
+    plt.rcParams['axes.grid'] = False
     x = np.arange(len(inference_labels))
     width = 0.35
 
-    plt.figure(figsize=(10, 6))
-    plt.bar(x - width/2, total_co2_emissions_lower, width=width, label='Lower bound ($66)', color='red', edgecolor='black')
-    plt.bar(x + width/2, total_co2_emissions_upper, width=width, label='Upper bound ($200)', color='blue',edgecolor='black')
+    fig, (ax1, ax2, ax3, ax4) = plt.subplots(1, 4, figsize=(20, 6))
+    ax1.bar(x - width/2, total_co2_emissions_lower, width=width, label='Lower bound ($66)', color='red', edgecolor='black')
+    ax1.bar(x + width/2, total_co2_emissions_upper, width=width, label='Upper bound ($200)', color='blue',edgecolor='black')
 
-    plt.xticks(x, inference_labels,rotation=45,ha='right')
-    plt.xlabel('DAU Scenarios')
-    plt.ylabel('Social cost of total Emissions (in USD)')
-    plt.title('Social cost of estimated total monthly carbon emissions for DAU (daily active user) scenarios')
+    ax1.set_xticks(x,inference_labels,rotation=45,ha='right')
+    ax1.set_xlabel('DAU Scenarios')
+    ax1.set_ylabel('Social cost of total Emissions (in USD)')
+    ax1.set_title('Social cost of estimated total \n monthly carbon emissions \n for DAU (daily active user) scenarios')
+    ax1.legend()
 
-    plt.grid(axis='y', linestyle='--', alpha=0.7)
-    plt.legend()
+    ax2.bar(x,actual_co2_emissions, width=width,color='blue',edgecolor='black')
+    ax2.set_ylabel('CO2 emissions (tCO2eq)')
+    ax2.set_title('Total monthly CO2 emissions (tCO2eq) emissions per DAU scenario')
+    ax2.set_xlabel('DAU Scenarios')
+    ax2.set_xticks(x,inference_labels,rotation=45,ha='right')
+
+    #plotting opportunity costs of carbon emissions for the DAU scenarios
+    ax3.bar(x,opp_cost_co2_emissions_flights,width=width,color='green',edgecolor='black')
+    ax3.set_ylabel('Number of SFO to JFK flights')
+    ax3.set_xlabel('DAU Scenarios')
+    ax3.set_title('Opportunity costs of inference scenarios \n (SFO to JFK flights)')
+    ax3.set_xticks(x,inference_labels,rotation=45,ha='right')
+
+    ax4.bar(x,opp_cost_co2_emissions_czech_residents,width=width,color='orange',edgecolor='black')
+    ax4.set_ylabel('Number of czech households')
+    ax4.set_xlabel('DAU Scenarios')
+    ax4.set_title('Opportunity costs of inference scenarios \n (number of czech households)')
+    ax4.set_xticks(x,inference_labels,rotation=45,ha='right')
+
     plt.tight_layout()
     plt.show()
     
@@ -63,6 +96,7 @@ def calculate_water_consumption(energy_df: pd.DataFrame):
             total_water_consumption.append(water_consumption)
 
     #plot barchart and shift labels by 45 degrees to enhance readability, and set y-axis scale to 10^7
+    plt.rcParams['axes.grid'] = False
     plt.figure(figsize=(8,15))
     plt.bar(inference_labels,total_water_consumption,color='blue',width=0.5)    
     plt.tick_params(axis='x',labelsize=8)
@@ -73,6 +107,83 @@ def calculate_water_consumption(energy_df: pd.DataFrame):
     plt.gca().yaxis.get_major_formatter().set_powerlimits((7, 7))
     plt.ylabel('Total Water Consumption (L)')
     plt.show()
+
+def proprietary_model_co2():
+    #use the numbers for chatGPT to plot the data with
+    #2.5 billion prompts per day, 0.34 watt-hours of energy per average prompt
+    prompts_per_month_gpt = (2.5e+9) * 30 
+    energy_per_prompt_kWh_gpt = 0.34 / 1000 
+    carbon_grid_intensity_grams_gpt = 384 
+    co2_total_per_month_gpt_tons = ((prompts_per_month_gpt * energy_per_prompt_kWh_gpt * carbon_grid_intensity_grams_gpt)/1e+6)
+    co2_costs_monthly_dollars_gpt_lower = 66 * co2_total_per_month_gpt_tons
+    co2_costs_monthly_dollars_gpt_upper = 200 * co2_total_per_month_gpt_tons
+
+    #use the numbers for Gemini, 8.5 billion searches per month, 0.03 grams of carbon per average prompt
+    gemini_carbon_emissions_grams = 0.03 
+    ai_overviews_searches = (8.5e+9) * 30
+    ai_overviews_total_emissions = (gemini_carbon_emissions_grams * (ai_overviews_searches*0.18))/(1e+6)
+    co2_costs_monthly_ai_overviews_lower = ai_overviews_total_emissions * 66
+    co2_costs_monthly_ai_overviews_upper = ai_overviews_total_emissions * 200
+
+    co2_data = {
+        'CO2 social costs lower bound': [co2_costs_monthly_dollars_gpt_lower,co2_costs_monthly_ai_overviews_lower],
+        'CO2 social costs upper bound': [co2_costs_monthly_dollars_gpt_upper,co2_costs_monthly_ai_overviews_upper]
+    }
+
+    co2_df = pd.DataFrame(co2_data)
+
+    #plotting the data
+    labels = ['ChatGPT','Google AI Overviews (Gemini 2.5)']
+    x = np.arange(len(labels))
+    width = 0.35
+    plt.rcParams['axes.grid'] = False
+
+    plt.figure(figsize=(10, 6))
+    plt.bar(x - width/2, co2_df['CO2 social costs lower bound'], width=width, label='Lower bound ($66)', color='red', edgecolor='black')
+    plt.bar(x + width/2, co2_df['CO2 social costs upper bound'], width=width, label='Upper bound ($200)', color='blue',edgecolor='black')
+
+    plt.xlabel('Model name')
+    plt.ylabel('Social cost of total emissions (in USD)')
+    plt.title('Social cost of estimated total monthly carbon emissions for proprietary models')
+    plt.xticks(x, labels,ha='right')
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+    print(f'CO2 total per month for ChatGPT in tons: {co2_total_per_month_gpt_tons}')
+    print(f'CO2 total for Google AI Overviews in tons: {ai_overviews_total_emissions}')
+    #print(co2_df)
+
+
+
+def proprietary_model_water():
+    prompts_per_month_gpt = (2.5e+9) * 30
+    water_per_prompt_gpt = 0.000322 
+    total_per_month_water_gpt = water_per_prompt_gpt * prompts_per_month_gpt
+    olive_oil_blue_water_footprint = 2388 * 1000
+    corn_blue_water_footprint = 81 * 1000
+
+    gemini_water_per_prompt = 0.34 / 1000
+    ai_overviews_searches = (8.5e+9)*30
+    ai_overviews_total_water = (gemini_water_per_prompt *(ai_overviews_searches*0.18))
+    
+    water_data = {
+        'Water consumption (L)': [total_per_month_water_gpt,ai_overviews_total_water]
+    }
+
+    water_df = pd.DataFrame(water_data)
+
+    labels = ['ChatGPT','Google AI Overviews (Gemini 2.5)']
+    plt.rcParams['axes.grid'] = False
+    plt.figure(figsize=(10, 6))
+    plt.xlabel('Model name')
+    plt.ylabel('Water consumption per month (L)')
+    plt.title('Monthly water consumption of proprietary LLMs (L)')
+    plt.bar(labels,water_df['Water consumption (L)'],color='blue')
+    plt.show()
+
+    print(f'ChatGPT total water per month in liters: {total_per_month_water_gpt}, in olive oil (tons): {total_per_month_water_gpt / olive_oil_blue_water_footprint}, corn: {total_per_month_water_gpt / corn_blue_water_footprint}')
+    print(f'Google AI overviews total water per month in liters: {ai_overviews_total_water}')
 
 #function for finding out which of the models form the datasets can be found in the downloads data
 def find_alike_models(cols, df1: pd.DataFrame, df2: pd.DataFrame):
@@ -96,7 +207,7 @@ def get_inference_labels(inferences):
     return inference_labels
     
 def clean_inference_data():
-    #import csv files
+    #import csv files, clean the data
     downloads_data = pd.read_csv("top-models-by-downloads.csv")
     leaderboard_data = pd.read_csv("openllm_leaderboard.csv")
     training_data = pd.read_csv("carbon_training_data.csv")
@@ -114,3 +225,5 @@ def clean_inference_data():
 
     calculate_co2_costs(co2_df,training_data,["fullname", "CO2 cost (kg)"])
     calculate_water_consumption(co2_df)
+    proprietary_model_co2()
+    proprietary_model_water()

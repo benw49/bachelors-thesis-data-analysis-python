@@ -68,22 +68,50 @@ def plot_training_data_co2(carbon_df: pd.DataFrame):
     plt.legend()
     plt.show()
 
+    sf_ny_roundtrip_flights_co2_tons_per_pass = 180.4
+    czech_residents_emissions_tons_per_capita = 7.04
+
+    opp_cost_co2_emissions_flights = []
+    opp_cost_co2_emissions_czech_residents = []
+
+    for i in carbon_df['CO2 (tCO2eq)']:
+        opp_cost_co2_emissions_flights.append(i/sf_ny_roundtrip_flights_co2_tons_per_pass)
+        opp_cost_co2_emissions_czech_residents.append(i/czech_residents_emissions_tons_per_capita)
+
     #plot social cost of carbon emissions of all models for lower bound and upper bound SCC values
+    fig, (ax1,ax2) = plt.subplots(1,2,figsize=(20,8))
     x = np.arange(len(carbon_df['LLM model']))
     width = 0.35
+    fig.subplots_adjust(bottom=0.35)
 
-    plt.figure(figsize=(10, 6))
-    plt.bar(x - width/2, carbon_df['Social cost of carbon emissions (lower bound, in USD)'], width=width, label='Lower bound ($66)', color='red', edgecolor='black')
-    plt.bar(x + width/2, carbon_df['Social cost of carbon emissions (upper bound, in USD)'], width=width, label='Upper bound ($200)', color='blue',edgecolor='black')
+    ax1.bar(x - width/2, carbon_df['Social cost of carbon emissions (lower bound, in USD)'], width=width, label='Lower bound ($66)', color='red', edgecolor='black')
+    ax1.bar(x + width/2, carbon_df['Social cost of carbon emissions (upper bound, in USD)'], width=width, label='Upper bound ($200)', color='blue',edgecolor='black')
     
-    plt.xticks(x, carbon_df['LLM model'],rotation=45,ha='right')
-    plt.xlabel('Model names')
-    plt.ylabel('Social cost of carbon emissions in USD')
-    plt.title('Social cost of carbon emissions of all models in dataset in USD')
-    plt.grid(axis='y', linestyle='--', alpha=0.7)
+    ax1.set_xticks(x, carbon_df['LLM model'],rotation=45,ha='right')
+    ax1.set_xlabel('Model names')
+    ax1.set_ylabel('Social cost of carbon emissions in USD')
+    ax1.set_title('Social cost of carbon emissions of all models in dataset in USD')
+    ax1.legend()
 
-    plt.legend()
-    plt.tight_layout()
+    ax2.bar(x,carbon_df['CO2 (tCO2eq)'],width=0.9,color='blue',edgecolor='black')
+    ax2.set_xlabel('Model names')
+    ax2.set_xticks(x,carbon_df['LLM model'],rotation=45,ha='right')
+    ax2.set_ylabel('CO2 emissions (tCO2eq) during training')
+    ax2.set_title('CO2 emissions (tCO2eq) during training per model')
+
+    fig2, (ax3,ax4) = plt.subplots(1,2,figsize=(20,8))
+    ax3.bar(x,opp_cost_co2_emissions_flights,width=0.9,color='blue',edgecolor='black')
+    ax3.set_xlabel('Model names')
+    ax3.set_xticks(x,carbon_df['LLM model'],rotation=45,ha='right')
+    ax3.set_ylabel('Number of SFO to JFK flights')
+    ax3.set_title('Opportunity costs of models during training \n (SFO to JFK flights)')
+
+    ax4.bar(x,opp_cost_co2_emissions_czech_residents,width=0.9,color='green',edgecolor='black')
+    ax4.set_xlabel('Model names')
+    ax4.set_ylabel('Number of czech households')
+    ax4.set_title('Opportunity costs of training scenarios \n (number of czech households)')
+    ax4.set_xticks(x,carbon_df['LLM model'],rotation=45,ha='right')
+
     plt.show()
 
 def plot_training_data_water(water_df: pd.DataFrame, crop_prices_df: pd.DataFrame):
@@ -93,7 +121,7 @@ def plot_training_data_water(water_df: pd.DataFrame, crop_prices_df: pd.DataFram
     bananas_blue_water_footprint = 97 * 1000
     wheat_blue_water_footprint = 342 * 1000
 
-    #plot total parameters vs. estimated water consumption in liters
+    #plot total parameters vs. estimated water consumption in liters (scatterplot)
     plt.figure(figsize=(15,8))
     plt.scatter(water_df['Parameters (billions)'],water_df['Estimated total water consumption (L)'],color='blue')
     plt.xlabel('Parameters (billions)')
@@ -102,13 +130,14 @@ def plot_training_data_water(water_df: pd.DataFrame, crop_prices_df: pd.DataFram
     label_scatterplots(water_df=water_df,water_consumption=water_df['Estimated total water consumption (L)'])
     plt.show()
 
-    #plot total water consumption of all models in the training dataset
+    #plot total water consumption of all models in the training dataset (bar chart)
     plt.figure(figsize=(15,8))
     plt.bar(water_df['LLM model'],water_df['Estimated total water consumption (L)'],color='blue')
     plt.xlabel('LLM model name')
     plt.ylabel('Total water consumption (L)')
     plt.title('Total water consumption of models during training (in L) for each model in dataset')
     plt.xticks(rotation=45,ha='right')
+    plt.tight_layout(pad=2.0)
     plt.show()
 
     water_opportunity_costs_labels = ['Corn','Olive oil', 'Bananas','Wheat']
@@ -133,19 +162,17 @@ def plot_training_data_water(water_df: pd.DataFrame, crop_prices_df: pd.DataFram
     print(f'Water opportunity costs monetized value: ${", ".join(str(i) for i in water_opportunity_costs_monetized)}')
 
     #plot water opportunity costs
-    plt.figure(figsize=(15,8))
-    plt.bar(water_opportunity_costs_labels,water_opportunity_costs,width=0.5,color='blue')
-    plt.title('Tons of crops that could have been grown with total estimated water consumed during training')
-    plt.xlabel('Crops')
-    plt.ylabel('Amount of crops (in tons)')
-    plt.show()
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 8))
+    ax1.bar(water_opportunity_costs_labels,water_opportunity_costs,width=0.5,color='blue')
+    ax1.set_title('Metric tons of crops that could have been grown with \n total estimated water consumed during training')
+    ax1.set_xlabel('Crops')
+    ax1.set_ylabel('Amount of crops (in metric tons)')
 
     #plot monetized value of opportunity costs 
-    plt.figure(figsize=(15,8))
-    plt.bar(water_opportunity_costs_labels,water_opportunity_costs_monetized,width=0.5,color='blue')
-    plt.title('Monetized global average market cost of tons of crops that could have been grown with total estimated water consumed during training')
-    plt.xlabel('Crops')
-    plt.ylabel('Monetized global average cost of crops on market (in USD)')
+    ax2.bar(water_opportunity_costs_labels,water_opportunity_costs_monetized,width=0.5,color='blue')
+    ax2.set_title('Monetized global average market cost of metric tons of crops that could have been \n grown with total estimated water consumed during training')
+    ax2.set_xlabel('Crops')
+    ax2.set_ylabel('Monetized global average cost of crops on market (in USD)')
     plt.show()
 
 
