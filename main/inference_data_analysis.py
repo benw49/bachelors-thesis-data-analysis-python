@@ -36,19 +36,6 @@ def calculate_co2_costs(co2_df: pd.DataFrame, training_df: pd.DataFrame, cols):
             total_co2_emissions_lower.append(co2_emissions_users_lower)
             total_co2_emissions_upper.append(co2_emissions_users_upper)
 
-    #52.46 tCO2e per flight assumes an average load factor of 84.78% for LHR to JFK flights in 2025,
-    #260 seats per flight on average, and 238 kgCO2e per passenger per flight on that route
-    #according to Google Flights; i.e. 260 * 0.8478 * 238 kg = 52,461 kg ≈ 52.46 tCO2e
-    lhr_jfk_flight_co2_tons = 52.46
-    czech_residents_emissions_tons_per_capita = 7.04
-
-    opp_cost_co2_emissions_flights = []
-    opp_cost_co2_emissions_czech_residents = []
-
-    for i in total_co2_emissions_lower:
-        opp_cost_co2_emissions_flights.append((i/66)/lhr_jfk_flight_co2_tons)
-        opp_cost_co2_emissions_czech_residents.append((i/66)/czech_residents_emissions_tons_per_capita)
-
     #plot social cost of estimated monthly co2 emissions in its own figure
     #labels show full dollar amount below $1M, scientific notation at or above $1M
     plt.rcParams['axes.grid'] = False
@@ -70,28 +57,8 @@ def calculate_co2_costs(co2_df: pd.DataFrame, training_df: pd.DataFrame, cols):
     plt.tight_layout()
     plt.show()
 
-    #plot opportunity costs of co2 emissions for the DAU scenarios in one figure with two subplots
-    fig2, (ax2, ax3) = plt.subplots(1, 2, figsize=(16, 6))
 
-    bars4 = ax2.bar(x, opp_cost_co2_emissions_flights, width=width, color='green', edgecolor='black')
-    ax2.bar_label(bars4, labels=[fmt_val(v) for v in opp_cost_co2_emissions_flights], fontsize=6, padding=2)
-    ax2.set_ylabel('Number of one-way LHR to JFK flights [British Airways]')
-    ax2.set_xlabel('DAU/MAU Scenarios')
-    ax2.set_title('Opportunity costs of inference scenarios\n(one-way LHR to JFK flights [British Airways])')
-    ax2.set_xticks(x, inference_labels, rotation=45, ha='right')
-
-    bars5 = ax3.bar(x, opp_cost_co2_emissions_czech_residents, width=width, color='orange', edgecolor='black')
-    ax3.bar_label(bars5, labels=[fmt_val(v) for v in opp_cost_co2_emissions_czech_residents], fontsize=6, padding=2)
-    ax3.set_ylabel('Number of Czech residents')
-    ax3.set_xlabel('DAU/MAU Scenarios')
-    ax3.set_title('Opportunity costs of inference scenarios\n(equivalent Czech resident annual emissions)')
-    ax3.set_xticks(x, inference_labels, rotation=45, ha='right')
-
-    plt.tight_layout()
-    plt.show()
-    
-
-def calculate_water_consumption(energy_df: pd.DataFrame, crop_prices_df: pd.DataFrame):
+def calculate_water_consumption(energy_df: pd.DataFrame):
     #WUE and PUE values assuming HuggingFace likely used AWS us-east-1 servers in Northern Virginia
     onsiteWUE = 0.12
     offsiteWUE = 0.63
@@ -110,22 +77,6 @@ def calculate_water_consumption(energy_df: pd.DataFrame, crop_prices_df: pd.Data
             water_consumption = (energy_df['Average water consumption (L) per prompt'] * I * user_scaler * energy_df['downloads']).sum()
             total_water_consumption.append(water_consumption)
 
-    olive_oil_blue_water_footprint = 2388 * 1000
-    corn_blue_water_footprint = 81 * 1000
-    wheat_blue_water_footprint = 342 * 1000
-    banana_blue_water_footprint = 160 * 1000
-
-    opp_cost_water_olive_oil = []
-    opp_cost_water_corn = []
-    opp_cost_water_wheat = []
-    opp_cost_water_banana = []
-
-    for i in total_water_consumption:
-        opp_cost_water_olive_oil.append(i / olive_oil_blue_water_footprint)
-        opp_cost_water_corn.append(i / corn_blue_water_footprint)
-        opp_cost_water_wheat.append(i / wheat_blue_water_footprint)
-        opp_cost_water_banana.append(i / banana_blue_water_footprint)
-
     #plot water consumption as a standalone bar chart
     plt.rcParams['axes.grid'] = False
     x = np.arange(len(inference_labels))
@@ -143,62 +94,6 @@ def calculate_water_consumption(energy_df: pd.DataFrame, crop_prices_df: pd.Data
     plt.tight_layout()
     plt.show()
 
-    corn_price = crop_prices_df['Yearly Average in USD per metric ton (2025)'].iloc[0]
-    banana_price = crop_prices_df["Yearly Average in USD per metric ton (2025)"].iloc[1]
-    olive_oil_price = crop_prices_df["Yearly Average in USD per metric ton (2025)"].iloc[2]
-    wheat_price = crop_prices_df['Yearly Average in USD per metric ton (2025)'].iloc[3]
-
-    econ_value_olive_oil = []
-    econ_value_corn = []
-    econ_value_wheat = []
-    econ_value_banana = []
-
-    for i in opp_cost_water_olive_oil:
-        econ_value_olive_oil.append(i * olive_oil_price)
-
-    for i in opp_cost_water_corn:
-        econ_value_corn.append(i * corn_price)
-
-    for i in opp_cost_water_wheat:
-        econ_value_wheat.append(i * wheat_price)
-
-    for i in opp_cost_water_banana:
-        econ_value_banana.append(i * banana_price)
-
-    #plot opportunity costs (top row) and monetized opportunity costs (bottom row) in one combined figure
-    opp_data = [opp_cost_water_olive_oil, opp_cost_water_corn, opp_cost_water_wheat, opp_cost_water_banana]
-    econ_data = [econ_value_olive_oil, econ_value_corn, econ_value_wheat, econ_value_banana]
-    opp_labels = ['Olive oil equivalent (tons)', 'Corn equivalent (tons)', 'Wheat equivalent (tons)', 'Banana equivalent (tons)']
-    econ_labels = ['Olive oil equivalent (USD)', 'Corn equivalent (USD)', 'Wheat equivalent (USD)', 'Banana equivalent (USD)']
-    crop_titles = ['Olive Oil', 'Corn', 'Wheat', 'Banana']
-    opp_colors = ['green', 'orange', 'goldenrod', 'yellow']
-
-    fig2, axes = plt.subplots(2, 4, figsize=(28, 12))
-
-    for col, (opp_vals, econ_vals, opp_ylabel, econ_ylabel, title, color) in enumerate(
-        zip(opp_data, econ_data, opp_labels, econ_labels, crop_titles, opp_colors)
-    ):
-        ax_top = axes[0, col]
-        bars = ax_top.bar(x, opp_vals, width=width, color=color, edgecolor='black')
-        ax_top.bar_label(bars, labels=[fmt_val(v) for v in opp_vals], fontsize=6, padding=2)
-        ax_top.set_xticks(x, inference_labels, rotation=45, ha='right')
-        ax_top.set_xlabel('DAU/MAU Scenarios')
-        ax_top.set_ylabel(opp_ylabel)
-        ax_top.set_title(f'Opportunity costs of inference scenarios\n({title} equivalent)')
-        ax_top.margins(y=0.2)
-
-        ax_bot = axes[1, col]
-        bars = ax_bot.bar(x, econ_vals, width=width, color=color, edgecolor='black')
-        ax_bot.bar_label(bars, labels=[fmt_val(v) for v in econ_vals], fontsize=6, padding=2)
-        ax_bot.set_xticks(x, inference_labels, rotation=45, ha='right')
-        ax_bot.set_xlabel('DAU/MAU Scenarios')
-        ax_bot.set_ylabel(econ_ylabel)
-        ax_bot.set_title(f'Monetized opportunity costs of water consumption\n({title} equivalent, inference scenarios)')
-        ax_bot.margins(y=0.2)
-
-    plt.tight_layout(pad=5.0)
-    plt.show()
-
 def proprietary_model_co2():
     #use the numbers for chatGPT to plot the data with
     #2.5 billion prompts per day, 0.34 watt-hours of energy per average prompt
@@ -212,7 +107,7 @@ def proprietary_model_co2():
     #use the numbers for Gemini, 13.7 billion searches per month, 0.03 grams of carbon per average prompt
     gemini_carbon_emissions_grams = 0.03 
     ai_overviews_searches = (13.7e+9) * 30
-    ai_overviews_total_emissions = (gemini_carbon_emissions_grams * (ai_overviews_searches*0.18))/(1e+6)
+    ai_overviews_total_emissions = (gemini_carbon_emissions_grams * (ai_overviews_searches*0.2461))/(1e+6)
     co2_costs_monthly_ai_overviews_lower = ai_overviews_total_emissions * 66
     co2_costs_monthly_ai_overviews_upper = ai_overviews_total_emissions * 200
 
@@ -235,7 +130,7 @@ def proprietary_model_co2():
 
     #plot social cost of estimated total monthly carbon emissions for proprietary models in its own figure
     #labels show full dollar amount below $1M, scientific notation at or above $1M
-    labels = ['ChatGPT, Mid 2025','Google AI Overviews (Gemini), Early 2025']
+    labels = ['ChatGPT, Mid 2025','Google AI Overviews (Gemini), Mid 2025']
     x = np.arange(len(labels))
     width = 0.35
     plt.rcParams['axes.grid'] = False
@@ -284,7 +179,7 @@ def proprietary_model_water(crop_prices_df: pd.DataFrame):
 
     gemini_water_per_prompt = 0.34 / 1000
     ai_overviews_searches = (13.7e+9)*30
-    ai_overviews_total_water = (gemini_water_per_prompt *(ai_overviews_searches*0.18))
+    ai_overviews_total_water = (gemini_water_per_prompt *(ai_overviews_searches*0.2461))
 
     water_data = {
         'Water consumption (L)': [total_per_month_water_gpt, ai_overviews_total_water],
@@ -297,7 +192,7 @@ def proprietary_model_water(crop_prices_df: pd.DataFrame):
     water_df = pd.DataFrame(water_data)
 
     #plot monthly water consumption in its own standalone bar chart
-    labels = ['ChatGPT, Mid 2025','Google AI Overviews (Gemini), Early 2025']
+    labels = ['ChatGPT, Mid 2025','Google AI Overviews (Gemini), Mid 2025']
     x = np.arange(len(labels))
     width = 0.5
     plt.rcParams['axes.grid'] = False
@@ -337,9 +232,9 @@ def proprietary_model_water(crop_prices_df: pd.DataFrame):
 
     #group data by crop, with one bar per model within each crop group
     crops = ['Olive Oil', 'Corn', 'Wheat', 'Banana']
-    model_colors = ['steelblue', 'tomato']
+    model_colors = ['steelblue', 'tomato', 'mediumpurple']
     x_crops = np.arange(len(crops))
-    width = 0.35
+    width = 0.25
 
     opp_costs_gpt = [
         water_df['Water opp cost olive oil (tons)'].iloc[0],
@@ -353,15 +248,19 @@ def proprietary_model_water(crop_prices_df: pd.DataFrame):
         water_df['Water opp cost wheat (tons)'].iloc[1],
         water_df['Water opp cost banana (tons)'].iloc[1],
     ]
+    opp_costs_combined = [a + b for a, b in zip(opp_costs_gpt, opp_costs_gemini)]
     econ_gpt = [econ_value_olive_oil[0], econ_value_corn[0], econ_value_wheat[0], econ_value_banana[0]]
     econ_gemini = [econ_value_olive_oil[1], econ_value_corn[1], econ_value_wheat[1], econ_value_banana[1]]
+    econ_combined = [a + b for a, b in zip(econ_gpt, econ_gemini)]
 
-    fig2, (ax_opp, ax_econ) = plt.subplots(1, 2, figsize=(16, 6))
+    fig2, (ax_opp, ax_econ) = plt.subplots(1, 2, figsize=(18, 6))
 
-    bars_opp_gpt = ax_opp.bar(x_crops - width/2, opp_costs_gpt, width=width, label='ChatGPT, Mid 2025', color=model_colors[0], edgecolor='black')
+    bars_opp_gpt = ax_opp.bar(x_crops - width, opp_costs_gpt, width=width, label='ChatGPT, Mid 2025', color=model_colors[0], edgecolor='black')
     ax_opp.bar_label(bars_opp_gpt, labels=[f"{v:,.1f}" for v in opp_costs_gpt], fontsize=7, padding=2)
-    bars_opp_gemini = ax_opp.bar(x_crops + width/2, opp_costs_gemini, width=width, label='Google AI Overviews (Gemini), Early 2025', color=model_colors[1], edgecolor='black')
+    bars_opp_gemini = ax_opp.bar(x_crops, opp_costs_gemini, width=width, label='Google AI Overviews (Gemini), Mid 2025', color=model_colors[1], edgecolor='black')
     ax_opp.bar_label(bars_opp_gemini, labels=[f"{v:,.1f}" for v in opp_costs_gemini], fontsize=7, padding=2)
+    bars_opp_combined = ax_opp.bar(x_crops + width, opp_costs_combined, width=width, label='Combined (ChatGPT + Gemini)', color=model_colors[2], edgecolor='black')
+    ax_opp.bar_label(bars_opp_combined, labels=[f"{v:,.1f}" for v in opp_costs_combined], fontsize=7, padding=2)
     ax_opp.set_xlabel('Crop')
     ax_opp.set_ylabel('Opportunity cost (metric tons)')
     ax_opp.set_title('Opportunity costs of proprietary model\nwater consumption by crop (metric tons)')
@@ -370,10 +269,12 @@ def proprietary_model_water(crop_prices_df: pd.DataFrame):
     ax_opp.margins(y=0.2)
     ax_opp.yaxis.set_major_formatter(ticker.FuncFormatter(lambda v, _: f"{v:,.0f}"))
 
-    bars_econ_gpt = ax_econ.bar(x_crops - width/2, econ_gpt, width=width, label='ChatGPT, Mid 2025', color=model_colors[0], edgecolor='black')
+    bars_econ_gpt = ax_econ.bar(x_crops - width, econ_gpt, width=width, label='ChatGPT, Mid 2025', color=model_colors[0], edgecolor='black')
     ax_econ.bar_label(bars_econ_gpt, labels=[fmt_dollar(v) for v in econ_gpt], fontsize=7, padding=2)
-    bars_econ_gemini = ax_econ.bar(x_crops + width/2, econ_gemini, width=width, label='Google AI Overviews (Gemini), Early 2025', color=model_colors[1], edgecolor='black')
+    bars_econ_gemini = ax_econ.bar(x_crops, econ_gemini, width=width, label='Google AI Overviews (Gemini), Mid 2025', color=model_colors[1], edgecolor='black')
     ax_econ.bar_label(bars_econ_gemini, labels=[fmt_dollar(v) for v in econ_gemini], fontsize=7, padding=2)
+    bars_econ_combined = ax_econ.bar(x_crops + width, econ_combined, width=width, label='Combined (ChatGPT + Gemini)', color=model_colors[2], edgecolor='black')
+    ax_econ.bar_label(bars_econ_combined, labels=[fmt_dollar(v) for v in econ_combined], fontsize=7, padding=2)
     ax_econ.set_xlabel('Crop')
     ax_econ.set_ylabel('Economic value (USD)')
     ax_econ.set_title('Monetized opportunity costs of proprietary model\nwater consumption by crop (USD)')
@@ -424,6 +325,6 @@ def clean_inference_data():
     co2_df['Average Energy Cost (kWh) per prompt'] = (co2_df['CO2 cost (kg)'] * 1000)/(269.8*21682)
 
     calculate_co2_costs(co2_df,training_data,["fullname", "CO2 cost (kg)"])
-    calculate_water_consumption(co2_df, crop_prices_df)
+    calculate_water_consumption(co2_df)
     proprietary_model_co2()
     proprietary_model_water(crop_prices_df)
