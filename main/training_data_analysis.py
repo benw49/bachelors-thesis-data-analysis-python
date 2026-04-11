@@ -1,3 +1,4 @@
+import math
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -12,10 +13,9 @@ def plot_training_data_co2(carbon_df: pd.DataFrame, carbon_prices_df: pd.DataFra
     carbon_df['Social cost of carbon emissions (lower bound, in USD)'] = carbon_df['CO2 (tCO2eq)'] * 66
     carbon_df['Social cost of carbon emissions (upper bound, in USD)'] = carbon_df['CO2 (tCO2eq)'] * 200
 
-    #52.46 tCO2e per flight assumes an average load factor of 84.78% for LHR to JFK flights in 2025,
-    #260 seats per flight on average, and 238 kgCO2e per passenger per flight on that route
-    #according to Google Flights; i.e. 260 * 0.8478 * 238 kg = 52,461 kg ≈ 52.46 tCO2e
-    lhr_jfk_flight_co2_tons = 52.46
+    #66,269 kgCO2 total for 219 passengers (economy class) on a Heathrow to JFK flight,
+    #as determined using the ICAO emissions calculator; i.e. 66,269 kg = 66.269 tCO2 per flight
+    lhr_jfk_flight_co2_tons = 66.269
     czech_residents_emissions_tons_per_capita = 7.04
 
     opp_cost_co2_emissions_flights = []
@@ -53,7 +53,7 @@ def plot_training_data_co2(carbon_df: pd.DataFrame, carbon_prices_df: pd.DataFra
     fig2, (ax3, ax4) = plt.subplots(1, 2, figsize=(36, 8))
     fig2.subplots_adjust(bottom=0.45)
     bars4 = ax3.bar(x, opp_cost_co2_emissions_flights, width=0.9, color='blue', edgecolor='black')
-    ax3.bar_label(bars4, fmt='%.3g', fontsize=6, padding=2)
+    ax3.bar_label(bars4, labels=[f"{math.floor(v):,}" for v in opp_cost_co2_emissions_flights], fontsize=6, padding=2)
     ax3.set_xlabel('Model names')
     ax3.set_xticks(x, carbon_df['Display Name'], rotation=45, ha='right')
     ax3.tick_params(axis='x', labelsize=7)
@@ -61,10 +61,10 @@ def plot_training_data_co2(carbon_df: pd.DataFrame, carbon_prices_df: pd.DataFra
     ax3.set_title('Opportunity costs of models during training\n(one-way LHR to JFK flights [British Airways])')
 
     bars5 = ax4.bar(x, opp_cost_co2_emissions_czech_residents, width=0.9, color='green', edgecolor='black')
-    ax4.bar_label(bars5, fmt='%.3g', fontsize=6, padding=2)
+    ax4.bar_label(bars5, labels=[f"{math.floor(v):,}" for v in opp_cost_co2_emissions_czech_residents], fontsize=6, padding=2)
     ax4.set_xlabel('Model names')
     ax4.set_ylabel('Number of Czech residents')
-    ax4.set_title('Opportunity costs of training scenarios\n(equivalent Czech resident annual emissions)')
+    ax4.set_title('Opportunity costs of training emissions\n(equivalent Czech resident annual emissions)')
     ax4.set_xticks(x, carbon_df['Display Name'], rotation=45, ha='right')
     ax4.tick_params(axis='x', labelsize=7)
 

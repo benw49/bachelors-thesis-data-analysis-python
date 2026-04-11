@@ -1,3 +1,4 @@
+import math
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib import ticker
@@ -111,10 +112,9 @@ def proprietary_model_co2():
     co2_costs_monthly_ai_overviews_lower = ai_overviews_total_emissions * 66
     co2_costs_monthly_ai_overviews_upper = ai_overviews_total_emissions * 200
 
-    #52.46 tCO2e per flight assumes an average load factor of 84.78% for LHR to JFK flights in 2025,
-    #260 seats per flight on average, and 238 kgCO2e per passenger per flight on that route
-    #according to Google Flights; i.e. 260 * 0.8478 * 238 kg = 52,461 kg ≈ 52.46 tCO2e
-    lhr_jfk_flight_co2_tons = 52.46
+    #66,269 kgCO2 total for 219 passengers (economy class) on a Heathrow to JFK flight,
+    #as determined using the ICAO emissions calculator; i.e. 66,269 kg = 66.269 tCO2 per flight
+    lhr_jfk_flight_co2_tons = 66.269
     czech_residents_emissions_tons_per_capita = 7.04
 
     co2_data = {
@@ -152,14 +152,14 @@ def proprietary_model_co2():
     fig2, (ax2, ax3) = plt.subplots(1, 2, figsize=(14, 6))
 
     bars3 = ax2.bar(x, co2_df['CO2 opp cost one-way LHR to JFK flights (British Airways)'], width=width, color='green', edgecolor='black')
-    ax2.bar_label(bars3, labels=[fmt_val(v) for v in co2_df['CO2 opp cost one-way LHR to JFK flights (British Airways)']], fontsize=6, padding=2)
+    ax2.bar_label(bars3, labels=[f"{math.floor(v):,}" for v in co2_df['CO2 opp cost one-way LHR to JFK flights (British Airways)']], fontsize=6, padding=2)
     ax2.set_xlabel('Model name')
     ax2.set_ylabel('Number of one-way LHR to JFK flights (British Airways)')
     ax2.set_xticks(x, labels, ha='right', rotation=10)
     ax2.set_title('Opportunity cost of proprietary models CO2 emissions\n(one-way LHR to JFK flights (British Airways))')
 
     bars4 = ax3.bar(x, co2_df['CO2 opp cost czech residents'], width=width, color='orange', edgecolor='black')
-    ax3.bar_label(bars4, labels=[fmt_val(v) for v in co2_df['CO2 opp cost czech residents']], fontsize=6, padding=2)
+    ax3.bar_label(bars4, labels=[f"{math.floor(v):,}" for v in co2_df['CO2 opp cost czech residents']], fontsize=6, padding=2)
     ax3.set_xlabel('Model name')
     ax3.set_ylabel('Number of Czech residents')
     ax3.set_title('Opportunity costs of proprietary models CO2 emissions\n(equivalent Czech resident annual emissions)')
