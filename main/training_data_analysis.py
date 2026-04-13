@@ -8,7 +8,7 @@ def fmt_val(v):
         return f"{v:.1f}"
     return f"{v:.1e}"
 
-def plot_training_data_co2(carbon_df: pd.DataFrame, carbon_prices_df: pd.DataFrame):
+def plot_training_data_co2(carbon_df: pd.DataFrame):
     #calculate social costs of carbon emissions using standard lower ($66) and upper ($200) SCC bounds
     carbon_df['Social cost of carbon emissions (lower bound, in USD)'] = carbon_df['CO2 (tCO2eq)'] * 66
     carbon_df['Social cost of carbon emissions (upper bound, in USD)'] = carbon_df['CO2 (tCO2eq)'] * 200
@@ -134,9 +134,6 @@ def clean_training_data():
     training_df_carbon = pd.read_csv("carbon_training_data.csv")
     training_df_water = pd.read_csv("water_training_data.csv")
     crop_prices_df = pd.read_csv("global_price_of_crops.csv")
-    #carbon_prices.csv uses semicolon separators and European decimal commas
-    carbon_prices_df = pd.read_csv("carbon_prices.csv", sep=';', decimal=',', encoding='utf-8-sig')
-    
     training_df_carbon = training_df_carbon.drop(columns=['Source',
      'Total CO2','GPU Used','Source for PUE value']
     )
@@ -155,5 +152,5 @@ def clean_training_data():
         params = df['Parameters (billions)'].apply(lambda p: str(int(p)) + 'B' if p == int(p) else str(p) + 'B')
         df['Display Name'] = df['LLM model'] + '-' + params
 
-    plot_training_data_co2(training_df_carbon, carbon_prices_df)
+    plot_training_data_co2(training_df_carbon)
     plot_training_data_water(training_df_water, crop_prices_df)

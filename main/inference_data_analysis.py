@@ -16,7 +16,7 @@ def fmt_val(v):
     #use comma-separated integer format for large values to avoid scientific notation
     return f"{v:,.0f}"
 
-def calculate_co2_costs(co2_df: pd.DataFrame, training_df: pd.DataFrame, cols):
+def calculate_co2_costs(co2_df: pd.DataFrame):
     #calculate total inference emissions for a scenario where there are different amounts of inferences
     # *assuming that an average user does 5, 25, or 50 prompts per day (150, 750, or 1,500 per month)*
     # *assuming also that said user has a Hugging Face style setup, i.e. they use 8 H100 GPUs for inference and are located
@@ -25,7 +25,7 @@ def calculate_co2_costs(co2_df: pd.DataFrame, training_df: pd.DataFrame, cols):
     #then convert total emissions from kg to tons
     DAU = [0.15,0.2,0.3,0.4]
     inferences = [150,750,1500]
-    inference_labels = get_inference_labels(inferences)
+    inference_labels = get_inference_labels()
 
     total_co2_emissions_lower = []
     total_co2_emissions_upper = []
@@ -70,7 +70,7 @@ def calculate_water_consumption(energy_df: pd.DataFrame):
     #5, 25, or 50 prompts per day multiplied by 30 days to get monthly inferences
     inferences = [150,750,1500]
     DAU = [0.15,0.2,0.3,0.4]
-    inference_labels = get_inference_labels(inferences)
+    inference_labels = get_inference_labels()
     total_water_consumption = []
 
     for user_scaler in DAU:
@@ -105,7 +105,7 @@ def proprietary_model_co2():
     co2_costs_monthly_dollars_gpt_lower = 66 * co2_total_per_month_gpt_tons
     co2_costs_monthly_dollars_gpt_upper = 200 * co2_total_per_month_gpt_tons
 
-    #use the numbers for Gemini, 13.7 billion searches per month, 0.03 grams of carbon per average prompt
+    #use the numbers for Gemini, 13.7 billion searches per day, 0.03 grams of carbon per average prompt
     gemini_carbon_emissions_grams = 0.03 
     ai_overviews_searches = (13.7e+9) * 30
     ai_overviews_total_emissions = (gemini_carbon_emissions_grams * (ai_overviews_searches*0.2461))/(1e+6)
@@ -177,7 +177,9 @@ def proprietary_model_water(crop_prices_df: pd.DataFrame):
     wheat_blue_water_footprint = 342 * 1000
     banana_blue_water_footprint = 97 * 1000
 
+    #0.34 mL per average Gemini/AI Overviews inference as of August 2025 (Pichai et al., 2025), converted to liters
     gemini_water_per_prompt = 0.34 / 1000
+    #13.7 billion Google searches per day, multiplied by 30 to get monthly total
     ai_overviews_searches = (13.7e+9)*30
     ai_overviews_total_water = (gemini_water_per_prompt *(ai_overviews_searches*0.2461))
 
@@ -294,7 +296,7 @@ def find_alike_models(cols, df1: pd.DataFrame, df2: pd.DataFrame):
     return df_filtered_final
 
 #function that gets the inference labels in the proper order for graphing on a bar chart
-def get_inference_labels(inferences):
+def get_inference_labels():
     scenarios_labels = ['15%','20%','30%','40%']
     inference_categories = ['5 prompts/day', '25 prompts/day', '50 prompts/day']
 
@@ -310,11 +312,9 @@ def clean_inference_data():
     #import csv files, clean the data
     downloads_data = pd.read_csv("top-models-by-downloads.csv")
     leaderboard_data = pd.read_csv("openllm_leaderboard.csv")
-    training_data = pd.read_csv("carbon_training_data.csv")
     crop_prices_df = pd.read_csv("global_price_of_crops.csv")
 
     downloads_data.rename(columns={"Model":"fullname"}, inplace=True)
-    training_data.rename(columns={"Hugging Face Model Name":"fullname"}, inplace=True)
     
     co2_df = find_alike_models(["fullname", "CO2 cost (kg)"], downloads_data, leaderboard_data)
 
@@ -324,7 +324,7 @@ def clean_inference_data():
     co2_df['Average CO2 cost (kg) per prompt'] = co2_df['CO2 cost (kg)'] / 21682
     co2_df['Average Energy Cost (kWh) per prompt'] = (co2_df['CO2 cost (kg)'] * 1000)/(269.8*21682)
 
-    calculate_co2_costs(co2_df,training_data,["fullname", "CO2 cost (kg)"])
+    calculate_co2_costs(co2_df)
     calculate_water_consumption(co2_df)
     proprietary_model_co2()
     proprietary_model_water(crop_prices_df)
