@@ -1,15 +1,37 @@
 import math
+import os
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib import ticker
 
-def fmt_val(v):
-    if abs(v) < 10000:
-        return f"{v:.1f}"
-    return f"{v:.1e}"
+
+# Rounds dollar values and avoids false precision (e.g. "$905,580.00" becomes "$906,000")
+# Values over $1M are shown as e.g. "$2.7M" for readability
+def fmt_money_rounded(v):
+    if abs(v) >= 1_000_000:
+        return f"${v/1e6:.1f}M"
+    elif abs(v) >= 10_000:
+        return f"${v/1000:.0f}K"
+    elif abs(v) >= 1_000:
+        return f"${v/1000:.1f}K"
+    else:
+        return f"${v:,.0f}"
+
+
+# Same rounding logic as fmt_money_rounded but for non-dollar counts (liters, metric tons, etc.)
+def fmt_count_rounded(v):
+    if abs(v) >= 1_000_000:
+        return f"{v/1e6:.1f}M"
+    elif abs(v) >= 10_000:
+        return f"{v/1000:.0f}K"
+    elif abs(v) >= 1_000:
+        return f"{v/1000:.1f}K"
+    else:
+        return f"{v:,.0f}"
+
 
 def plot_training_data_co2(carbon_df: pd.DataFrame):
-    #calculate social costs of carbon emissions using standard lower ($66) and upper ($200) SCC bounds
     carbon_df['Social cost of carbon emissions (lower bound, in USD)'] = carbon_df['CO2 (tCO2eq)'] * 66
     carbon_df['Social cost of carbon emissions (upper bound, in USD)'] = carbon_df['CO2 (tCO2eq)'] * 200
 
@@ -18,55 +40,113 @@ def plot_training_data_co2(carbon_df: pd.DataFrame):
     lhr_jfk_flight_co2_tons = 66.269
     czech_residents_emissions_tons_per_capita = 7.04
 
+    # sort descending by lower bound, split top 10 vs remaining
+    carbon_sorted = carbon_df.sort_values(
+        'Social cost of carbon emissions (lower bound, in USD)', ascending=False
+    ).reset_index(drop=True)
+    top10 = carbon_sorted.iloc[:10].reset_index(drop=True)
+    rest = carbon_sorted.iloc[10:].reset_index(drop=True)
+
     opp_cost_co2_emissions_flights = []
     opp_cost_co2_emissions_czech_residents = []
 
-    for i in carbon_df['CO2 (tCO2eq)']:
+    for i in carbon_sorted['CO2 (tCO2eq)']:
         opp_cost_co2_emissions_flights.append(i / lhr_jfk_flight_co2_tons)
         opp_cost_co2_emissions_czech_residents.append(i / czech_residents_emissions_tons_per_capita)
 
-    #plot social cost of carbon emissions
-    fig, ax1 = plt.subplots(1, 1, figsize=(21, 11))
-    x = np.arange(len(carbon_df['LLM model']))
-    width = 0.45
-    fig.subplots_adjust(bottom=0.45)
+    width = 0.35
+    #Graph: Social cost of carbon emissions — Top 10 models (upper subplot) and remaining models (lower subplot)
+    fig, (ax_top, ax_rest) = plt.subplots(2, 1, figsize=(20, 22))
 
-    total_lower = carbon_df['Social cost of carbon emissions (lower bound, in USD)'].sum()
-    total_upper = carbon_df['Social cost of carbon emissions (upper bound, in USD)'].sum()
+    x_top = np.arange(len(top10))
+    bars_lower_top = ax_top.bar(
+        x_top - width/2,
+        top10['Social cost of carbon emissions (lower bound, in USD)'],
+        width=width, label='Lower bound ($66/tCO2eq)', color='red', edgecolor='black'
+    )
+    bars_upper_top = ax_top.bar(
+        x_top + width/2,
+        top10['Social cost of carbon emissions (upper bound, in USD)'],
+        width=width, label='Upper bound ($200/tCO2eq)', color='blue', edgecolor='black'
+    )
+    ax_top.bar_label(
+        bars_lower_top,
+        labels=[fmt_money_rounded(v) for v in top10['Social cost of carbon emissions (lower bound, in USD)']],
+        fontsize=13, padding=2, rotation=0
+    )
+    ax_top.bar_label(
+        bars_upper_top,
+        labels=[fmt_money_rounded(v) for v in top10['Social cost of carbon emissions (upper bound, in USD)']],
+        fontsize=13, padding=2, rotation=0
+    )
+    ax_top.yaxis.set_major_formatter(ticker.FuncFormatter(lambda v, _: fmt_money_rounded(v)))
+    ax_top.set_xticks(x_top, top10['Display Name'], rotation=45, ha='right')
+    ax_top.tick_params(axis='x', labelsize=13)
+    ax_top.tick_params(axis='y', labelsize=13)
+    ax_top.set_ylabel('Social cost of carbon emissions (USD)', fontsize=13)
+    ax_top.set_title('Social cost of carbon emissions — Top 10 models (USD)', fontsize=15)
+    ax_top.margins(x=0.02, y=0.25)
+    ax_top.legend(fontsize=12)
 
-    bars_lower = ax1.bar(x - width/2, carbon_df['Social cost of carbon emissions (lower bound, in USD)'], width=width, label='Lower bound ($66/tCO2eq)', color='red', edgecolor='black')
-    bars_upper = ax1.bar(x + width/2, carbon_df['Social cost of carbon emissions (upper bound, in USD)'], width=width, label='Upper bound ($200/tCO2eq)', color='blue', edgecolor='black')
-    ax1.bar_label(bars_lower, labels=[f"${v:,.2f} ({v/total_lower*100:.1f}%)" for v in carbon_df['Social cost of carbon emissions (lower bound, in USD)']], fontsize=8, padding=2, rotation=90)
-    ax1.bar_label(bars_upper, labels=[f"${v:,.2f} ({v/total_upper*100:.1f}%)" for v in carbon_df['Social cost of carbon emissions (upper bound, in USD)']], fontsize=8, padding=2, rotation=90)
-    ax1.yaxis.set_major_formatter(plt.matplotlib.ticker.FuncFormatter(lambda v, _: f"${v:,.0f}"))
-    ax1.set_xticks(x, carbon_df['Display Name'], rotation=45, ha='right')
-    ax1.tick_params(axis='x', labelsize=7)
-    ax1.set_xlabel('Model names')
-    ax1.set_ylabel('Social cost of carbon emissions (USD)')
-    ax1.set_title('Social cost of carbon emissions of all models in dataset (USD)')
-    ax1.margins(y=0.4)
-    ax1.legend()
+    x_rest = np.arange(len(rest))
+    bars_lower_rest = ax_rest.bar(
+        x_rest - width/2,
+        rest['Social cost of carbon emissions (lower bound, in USD)'],
+        width=width, label='Lower bound ($66/tCO2eq)', color='red', edgecolor='black'
+    )
+    bars_upper_rest = ax_rest.bar(
+        x_rest + width/2,
+        rest['Social cost of carbon emissions (upper bound, in USD)'],
+        width=width, label='Upper bound ($200/tCO2eq)', color='blue', edgecolor='black'
+    )
+    ax_rest.bar_label(
+        bars_lower_rest,
+        labels=[fmt_money_rounded(v) for v in rest['Social cost of carbon emissions (lower bound, in USD)']],
+        fontsize=13, padding=2, rotation=90
+    )
+    ax_rest.bar_label(
+        bars_upper_rest,
+        labels=[fmt_money_rounded(v) for v in rest['Social cost of carbon emissions (upper bound, in USD)']],
+        fontsize=13, padding=2, rotation=90
+    )
+    ax_rest.yaxis.set_major_formatter(ticker.FuncFormatter(lambda v, _: fmt_money_rounded(v)))
+    ax_rest.set_xticks(x_rest, rest['Display Name'], rotation=45, ha='right')
+    ax_rest.tick_params(axis='x', labelsize=13)
+    ax_rest.tick_params(axis='y', labelsize=13)
+    ax_rest.set_xlabel('Model names', fontsize=13)
+    ax_rest.set_ylabel('Social cost of carbon emissions (USD)', fontsize=13)
+    ax_rest.set_title('Social cost of carbon emissions — Remaining models (USD)', fontsize=15)
+    ax_rest.margins(x=0.02, y=0.3)
+    ax_rest.legend(fontsize=12)
+
+    plt.tight_layout(pad=5.0, h_pad=16.0, rect=[0, 0, 1, 0.96])
+    plt.show()
+
+    x = np.arange(len(carbon_sorted))
+    #Graph: Opportunity costs of training CO2 emissions — equivalent one-way LHR to JFK flights
+    fig2, ax3 = plt.subplots(1, 1, figsize=(18, 10))
+    fig2.subplots_adjust(bottom=0.45)
+    bars4 = ax3.bar(x, opp_cost_co2_emissions_flights, width=0.5, color='blue', edgecolor='black')
+    ax3.bar_label(bars4, labels=[f"{math.floor(v):,}" for v in opp_cost_co2_emissions_flights], fontsize=10, padding=2)
+    ax3.set_xlabel('Model names')
+    ax3.set_xticks(x, carbon_sorted['Display Name'], rotation=45, ha='right')
+    ax3.tick_params(axis='x', labelsize=10)
+    ax3.set_ylabel('Number of one-way LHR to JFK flights [British Airways]')
+    ax3.set_title('Opportunity costs of models during training\n(one-way LHR to JFK flights [British Airways])')
 
     plt.tight_layout(pad=5.0)
     plt.show()
 
-    fig2, (ax3, ax4) = plt.subplots(1, 2, figsize=(36, 8))
-    fig2.subplots_adjust(bottom=0.45)
-    bars4 = ax3.bar(x, opp_cost_co2_emissions_flights, width=0.9, color='blue', edgecolor='black')
-    ax3.bar_label(bars4, labels=[f"{math.floor(v):,}" for v in opp_cost_co2_emissions_flights], fontsize=6, padding=2)
-    ax3.set_xlabel('Model names')
-    ax3.set_xticks(x, carbon_df['Display Name'], rotation=45, ha='right')
-    ax3.tick_params(axis='x', labelsize=7)
-    ax3.set_ylabel('Number of one-way LHR to JFK flights [British Airways]')
-    ax3.set_title('Opportunity costs of models during training\n(one-way LHR to JFK flights [British Airways])')
-
-    bars5 = ax4.bar(x, opp_cost_co2_emissions_czech_residents, width=0.9, color='green', edgecolor='black')
-    ax4.bar_label(bars5, labels=[f"{math.floor(v):,}" for v in opp_cost_co2_emissions_czech_residents], fontsize=6, padding=2)
+    #Graph: Opportunity costs of training CO2 emissions — equivalent Czech resident annual emissions
+    fig3, ax4 = plt.subplots(1, 1, figsize=(18, 10))
+    fig3.subplots_adjust(bottom=0.45)
+    bars5 = ax4.bar(x, opp_cost_co2_emissions_czech_residents, width=0.35, color='green', edgecolor='black')
+    ax4.bar_label(bars5, labels=[f"{math.floor(v):,}" for v in opp_cost_co2_emissions_czech_residents], fontsize=10, padding=2)
     ax4.set_xlabel('Model names')
     ax4.set_ylabel('Number of Czech residents')
     ax4.set_title('Opportunity costs of training emissions\n(equivalent Czech resident annual emissions)')
-    ax4.set_xticks(x, carbon_df['Display Name'], rotation=45, ha='right')
-    ax4.tick_params(axis='x', labelsize=7)
+    ax4.set_xticks(x, carbon_sorted['Display Name'], rotation=45, ha='right')
+    ax4.tick_params(axis='x', labelsize=10)
 
     plt.tight_layout(pad=5.0)
     plt.show()
@@ -78,23 +158,55 @@ def plot_training_data_water(water_df: pd.DataFrame, crop_prices_df: pd.DataFram
     bananas_blue_water_footprint = 97 * 1000
     wheat_blue_water_footprint = 342 * 1000
 
-    #plot total water consumption of all models in the training dataset (bar chart)
-    total_water = water_df['Estimated total water consumption (L)'].sum()
+    #sort descending by water consumption, split top 10 vs remaining
+    water_sorted = water_df.sort_values(
+        'Estimated total water consumption (L)', ascending=False
+    ).reset_index(drop=True)
+    top10_w = water_sorted.iloc[:10].reset_index(drop=True)
+    rest_w = water_sorted.iloc[10:].reset_index(drop=True)
 
-    fig_w, ax_w = plt.subplots(figsize=(15, 8))
-    bars1 = ax_w.bar(water_df['Display Name'], water_df['Estimated total water consumption (L)'], color='blue')
-    ax_w.bar_label(bars1, labels=[f"{v:,.1f} ({v/total_water*100:.1f}%)" for v in water_df['Estimated total water consumption (L)']], fontsize=6, padding=2, rotation=90)
-    ax_w.set_xlabel('LLM model name')
-    ax_w.set_ylabel('Total water consumption (L)')
-    ax_w.set_title('Total water consumption of models during training (in L) for each model in dataset')
-    ax_w.tick_params(axis='x', rotation=45)
-    plt.setp(ax_w.get_xticklabels(), ha='right')
-    ax_w.margins(y=0.3)
-    plt.tight_layout(pad=2.0)
+    #Graph: Total water consumption during training — Top 10 models (upper subplot) and remaining models (lower subplot)
+    fig_w, (ax_top_w, ax_rest_w) = plt.subplots(2, 1, figsize=(20, 22))
+
+    bars_top = ax_top_w.bar(
+        top10_w['Display Name'], top10_w['Estimated total water consumption (L)'],
+        width=0.5, color='blue', edgecolor='black'
+    )
+    ax_top_w.bar_label(
+        bars_top,
+        labels=[fmt_count_rounded(v) for v in top10_w['Estimated total water consumption (L)']],
+        fontsize=13, padding=2, rotation=0
+    )
+    ax_top_w.set_ylabel('Total water consumption (L)', fontsize=13)
+    ax_top_w.set_title('Total water consumption during training — Top 10 models (L)', fontsize=15)
+    ax_top_w.tick_params(axis='x', rotation=45, labelsize=13)
+    ax_top_w.tick_params(axis='y', labelsize=13)
+    plt.setp(ax_top_w.get_xticklabels(), ha='right')
+    ax_top_w.margins(x=0.02, y=0.25)
+    ax_top_w.yaxis.set_major_formatter(ticker.FuncFormatter(lambda v, _: fmt_count_rounded(v)))
+
+    bars_rest = ax_rest_w.bar(
+        rest_w['Display Name'], rest_w['Estimated total water consumption (L)'],
+        width=0.5, color='blue', edgecolor='black'
+    )
+    ax_rest_w.bar_label(
+        bars_rest,
+        labels=[fmt_count_rounded(v) for v in rest_w['Estimated total water consumption (L)']],
+        fontsize=13, padding=2, rotation=0
+    )
+    ax_rest_w.set_xlabel('LLM model name', fontsize=13)
+    ax_rest_w.set_ylabel('Total water consumption (L)', fontsize=13)
+    ax_rest_w.set_title('Total water consumption during training — Remaining models (L)', fontsize=15)
+    ax_rest_w.tick_params(axis='x', rotation=45, labelsize=13)
+    ax_rest_w.tick_params(axis='y', labelsize=13)
+    plt.setp(ax_rest_w.get_xticklabels(), ha='right')
+    ax_rest_w.margins(x=0.02, y=0.3)
+    ax_rest_w.yaxis.set_major_formatter(ticker.FuncFormatter(lambda v, _: fmt_count_rounded(v)))
+
+    plt.tight_layout(pad=4.0, h_pad=16.0, rect=[0, 0, 1, 0.96])
     plt.show()
 
-    water_opportunity_costs_labels = ['Corn','Olive oil', 'Bananas','Wheat']
-   
+    water_opportunity_costs_labels = ['Corn', 'Olive oil', 'Bananas', 'Wheat']
     total_water_consumed_training = water_df['Estimated total water consumption (L)'].sum()
 
     water_opportunity_costs = [
@@ -111,25 +223,30 @@ def plot_training_data_water(water_df: pd.DataFrame, crop_prices_df: pd.DataFram
         (total_water_consumed_training / wheat_blue_water_footprint)*crop_prices_df['Yearly Average in USD per metric ton (2025)'].iloc[3]
     ]
 
-    #plot water opportunity costs
+    #Graph: Water opportunity costs by crop — metric tons (left subplot) and monetized USD value (right subplot)
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 8))
-    bars2 = ax1.bar(water_opportunity_costs_labels,water_opportunity_costs,width=0.5,color='blue')
-    ax1.bar_label(bars2, labels=[fmt_val(v) for v in water_opportunity_costs], fontsize=6, padding=2)
-    ax1.set_title('Metric tons of crops that could have been grown with \n total estimated water consumed during training')
+    bars2 = ax1.bar(water_opportunity_costs_labels, water_opportunity_costs, width=0.5, color='blue')
+    ax1.bar_label(bars2, labels=[fmt_count_rounded(v) for v in water_opportunity_costs], fontsize=10, padding=2)
+    ax1.set_title('Metric tons of crops that could have been grown with\ntotal estimated water consumed during training')
     ax1.set_xlabel('Crops')
     ax1.set_ylabel('Amount of crops (in metric tons)')
+    ax1.tick_params(axis='x', labelsize=10)
+    ax1.yaxis.set_major_formatter(ticker.FuncFormatter(lambda v, _: fmt_count_rounded(v)))
 
-    #plot monetized value of opportunity costs
-    bars3 = ax2.bar(water_opportunity_costs_labels,water_opportunity_costs_monetized,width=0.5,color='blue')
-    ax2.bar_label(bars3, labels=[f"${v:,.1f}" for v in water_opportunity_costs_monetized], fontsize=6, padding=2)
-    ax2.set_title('Monetized global average market cost of metric tons of crops that could have been \n grown with total estimated water consumed during training')
+    bars3 = ax2.bar(water_opportunity_costs_labels, water_opportunity_costs_monetized, width=0.5, color='blue')
+    ax2.bar_label(bars3, labels=[fmt_money_rounded(v) for v in water_opportunity_costs_monetized], fontsize=10, padding=2)
+    ax2.set_title('Monetized global average market cost of metric tons of crops\nthat could have been grown with total estimated water consumed during training')
     ax2.set_xlabel('Crops')
     ax2.set_ylabel('Monetized global average cost of crops on market (in USD)')
+    ax2.tick_params(axis='x', labelsize=10)
+    ax2.yaxis.set_major_formatter(ticker.FuncFormatter(lambda v, _: fmt_money_rounded(v)))
+
+    plt.tight_layout(pad=2.0)
     plt.show()
 
 
-
 def clean_training_data():
+    os.makedirs("graphs", exist_ok=True)
     #import training data, remove unused columns, then call plotting functions
     training_df_carbon = pd.read_csv("carbon_training_data.csv")
     training_df_water = pd.read_csv("water_training_data.csv")

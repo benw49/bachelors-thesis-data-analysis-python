@@ -1,20 +1,35 @@
 import math
+import os
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib import ticker
 import numpy as np
 
-def fmt_dollar(v):
-    return f"${v:,.2f}"
 
-def fmt_val(v):
-    #avoid scientific notation for values under 100,000
-    if abs(v) < 100_000:
-        if abs(v) < 1:
-            return f"{v:.3f}"
-        return f"{v:,.1f}"
-    #use comma-separated integer format for large values to avoid scientific notation
-    return f"{v:,.0f}"
+#rounds dollar values 
+#values over $1M are shown as e.g. "$2.7M" for readability
+def fmt_money_rounded(v):
+    if abs(v) >= 1_000_000:
+        return f"${v/1e6:.1f}M"
+    elif abs(v) >= 10_000:
+        return f"${round(v, -3)/1000:.0f}K"
+    elif abs(v) >= 1_000:
+        return f"${round(v, -2)/1000:.1f}K"
+    else:
+        return f"${v:,.0f}"
+
+
+#same rounding logic as fmt_money_rounded but for non-dollar counts (liters, metric tons, etc.)
+def fmt_count_rounded(v):
+    if abs(v) >= 1_000_000:
+        return f"{v/1e6:.1f}M"
+    elif abs(v) >= 10_000:
+        return f"{round(v, -3)/1000:.0f}K"
+    elif abs(v) >= 1_000:
+        return f"{round(v, -2)/1000:.1f}K"
+    else:
+        return f"{v:,.0f}"
+
 
 def calculate_co2_costs(co2_df: pd.DataFrame):
     #calculate total inference emissions for a scenario where there are different amounts of inferences
@@ -31,30 +46,30 @@ def calculate_co2_costs(co2_df: pd.DataFrame):
     total_co2_emissions_upper = []
 
     for user_scaler in DAU:
-        for I in inferences: 
+        for I in inferences:
             co2_emissions_users_lower = ((co2_df['Average CO2 cost (kg) per prompt'] * I * user_scaler * co2_df['downloads']) / 1000).sum() * 66
             co2_emissions_users_upper = ((co2_df['Average CO2 cost (kg) per prompt'] * I * user_scaler * co2_df['downloads']) / 1000).sum() * 200
             total_co2_emissions_lower.append(co2_emissions_users_lower)
             total_co2_emissions_upper.append(co2_emissions_users_upper)
 
-    #plot social cost of estimated monthly co2 emissions in its own figure
-    #labels show full dollar amount below $1M, scientific notation at or above $1M
     plt.rcParams['axes.grid'] = False
     x = np.arange(len(inference_labels))
     width = 0.35
 
-    fig1, ax1 = plt.subplots(figsize=(10, 6))
+    #Graph: Social cost of estimated total monthly carbon emissions for open-source models (DAU scenarios)
+    fig1, ax1 = plt.subplots(figsize=(14, 8))
     bars_lower = ax1.bar(x - width/2, total_co2_emissions_lower, width=width, label='Lower bound ($66)', color='red', edgecolor='black')
-    ax1.bar_label(bars_lower, labels=[fmt_dollar(v) for v in total_co2_emissions_lower], fontsize=6, padding=2, rotation=90)
+    ax1.bar_label(bars_lower, labels=[fmt_money_rounded(v) for v in total_co2_emissions_lower], fontsize=10, padding=2, rotation=90)
     bars_upper = ax1.bar(x + width/2, total_co2_emissions_upper, width=width, label='Upper bound ($200)', color='blue', edgecolor='black')
-    ax1.bar_label(bars_upper, labels=[fmt_dollar(v) for v in total_co2_emissions_upper], fontsize=6, padding=2, rotation=90)
+    ax1.bar_label(bars_upper, labels=[fmt_money_rounded(v) for v in total_co2_emissions_upper], fontsize=10, padding=2, rotation=90)
     ax1.set_xticks(x, inference_labels, rotation=45, ha='right')
-    ax1.set_xlabel('DAU/MAU Scenarios')
+    ax1.tick_params(axis='x', labelsize=10)
+    ax1.set_xlabel('Daily active users scenarios')
     ax1.set_ylabel('Social cost of total emissions (in USD)')
-    ax1.set_title('Social cost of estimated total monthly carbon emissions\nfor DAU/MAU scenarios')
+    ax1.set_title('Social cost of estimated total monthly carbon emissions\nfor daily active user scenarios')
     ax1.legend()
     ax1.margins(y=0.25)
-    ax1.yaxis.set_major_formatter(ticker.FuncFormatter(lambda v, _: f"${v:,.0f}"))
+    ax1.yaxis.set_major_formatter(ticker.FuncFormatter(lambda v, _: fmt_money_rounded(v)))
     plt.tight_layout()
     plt.show()
 
@@ -78,35 +93,35 @@ def calculate_water_consumption(energy_df: pd.DataFrame):
             water_consumption = (energy_df['Average water consumption (L) per prompt'] * I * user_scaler * energy_df['downloads']).sum()
             total_water_consumption.append(water_consumption)
 
-    #plot water consumption as a standalone bar chart
     plt.rcParams['axes.grid'] = False
     x = np.arange(len(inference_labels))
     width = 0.5
 
-    fig1, ax1 = plt.subplots(figsize=(10, 6))
+    #Graph: Total monthly water consumption for open-source models (DAU scenarios)
+    fig1, ax1 = plt.subplots(figsize=(14, 8))
     bars1 = ax1.bar(x, total_water_consumption, width=width, color='blue', edgecolor='black')
-    ax1.bar_label(bars1, labels=[fmt_val(v) for v in total_water_consumption], fontsize=6, padding=2)
+    ax1.bar_label(bars1, labels=[fmt_count_rounded(v) for v in total_water_consumption], fontsize=10, padding=2)
     ax1.set_xticks(x, inference_labels, rotation=45, ha='right')
-    ax1.set_xlabel('DAU/MAU Scenarios')
+    ax1.tick_params(axis='x', labelsize=10)
+    ax1.set_xlabel('Daily active users scenarios')
     ax1.set_ylabel('Total Water Consumption (L)')
-    ax1.set_title('Total monthly water consumption (L) \n for daily active user scenarios')
-    #use comma-separated integer format on the y-axis to suppress scientific notation
-    ax1.yaxis.set_major_formatter(ticker.FuncFormatter(lambda v, _: f"{v:,.0f}"))
+    ax1.set_title('Total monthly water consumption (L)\nfor daily active user scenarios')
+    ax1.yaxis.set_major_formatter(ticker.FuncFormatter(lambda v, _: fmt_count_rounded(v)))
     plt.tight_layout()
     plt.show()
 
 def proprietary_model_co2():
     #use the numbers for chatGPT to plot the data with
     #2.5 billion prompts per day, 0.34 watt-hours of energy per average prompt
-    prompts_per_month_gpt = (2.5e+9) * 30 
-    energy_per_prompt_kWh_gpt = 0.34 / 1000 
-    carbon_grid_intensity_grams_gpt = 384 
+    prompts_per_month_gpt = (2.5e+9) * 30
+    energy_per_prompt_kWh_gpt = 0.34 / 1000
+    carbon_grid_intensity_grams_gpt = 384
     co2_total_per_month_gpt_tons = ((prompts_per_month_gpt * energy_per_prompt_kWh_gpt * carbon_grid_intensity_grams_gpt)/1e+6)
     co2_costs_monthly_dollars_gpt_lower = 66 * co2_total_per_month_gpt_tons
     co2_costs_monthly_dollars_gpt_upper = 200 * co2_total_per_month_gpt_tons
 
     #use the numbers for Gemini, 13.7 billion searches per day, 0.03 grams of carbon per average prompt
-    gemini_carbon_emissions_grams = 0.03 
+    gemini_carbon_emissions_grams = 0.03
     ai_overviews_searches = (13.7e+9) * 30
     ai_overviews_total_emissions = (gemini_carbon_emissions_grams * (ai_overviews_searches*0.2461))/(1e+6)
     co2_costs_monthly_ai_overviews_lower = ai_overviews_total_emissions * 66
@@ -118,52 +133,60 @@ def proprietary_model_co2():
     czech_residents_emissions_tons_per_capita = 7.04
 
     co2_data = {
-        'CO2 social costs lower bound': [co2_costs_monthly_dollars_gpt_lower,co2_costs_monthly_ai_overviews_lower],
-        'CO2 social costs upper bound': [co2_costs_monthly_dollars_gpt_upper,co2_costs_monthly_ai_overviews_upper],
-        'CO2 opp cost one-way LHR to JFK flights (British Airways)': [(co2_total_per_month_gpt_tons/lhr_jfk_flight_co2_tons),
-        (ai_overviews_total_emissions/lhr_jfk_flight_co2_tons)],
-        'CO2 opp cost czech residents': [(co2_total_per_month_gpt_tons/czech_residents_emissions_tons_per_capita),
-        (ai_overviews_total_emissions/czech_residents_emissions_tons_per_capita)]
+        'CO2 social costs lower bound': [co2_costs_monthly_dollars_gpt_lower, co2_costs_monthly_ai_overviews_lower],
+        'CO2 social costs upper bound': [co2_costs_monthly_dollars_gpt_upper, co2_costs_monthly_ai_overviews_upper],
+        'CO2 opp cost one-way LHR to JFK flights (British Airways)': [
+            (co2_total_per_month_gpt_tons/lhr_jfk_flight_co2_tons),
+            (ai_overviews_total_emissions/lhr_jfk_flight_co2_tons)
+        ],
+        'CO2 opp cost czech residents': [
+            (co2_total_per_month_gpt_tons/czech_residents_emissions_tons_per_capita),
+            (ai_overviews_total_emissions/czech_residents_emissions_tons_per_capita)
+        ]
     }
 
     co2_df = pd.DataFrame(co2_data)
 
-    #plot social cost of estimated total monthly carbon emissions for proprietary models in its own figure
-    #labels show full dollar amount below $1M, scientific notation at or above $1M
-    labels = ['ChatGPT, Mid 2025','Google AI Overviews (Gemini), Mid 2025']
+    labels = ['ChatGPT, Mid 2025', 'Google AI Overviews (Gemini), Mid 2025']
     x = np.arange(len(labels))
     width = 0.35
     plt.rcParams['axes.grid'] = False
 
-    fig1, ax1 = plt.subplots(figsize=(8, 6))
+    #Graph: Social cost of estimated total monthly carbon emissions for proprietary models (ChatGPT, Gemini)
+    fig1, ax1 = plt.subplots(figsize=(10, 7))
     bars1 = ax1.bar(x - width/2, co2_df['CO2 social costs lower bound'], width=width, label='Lower bound ($66)', color='red', edgecolor='black')
-    ax1.bar_label(bars1, labels=[fmt_dollar(v) for v in co2_df['CO2 social costs lower bound']], fontsize=6, padding=2)
+    ax1.bar_label(bars1, labels=[fmt_money_rounded(v) for v in co2_df['CO2 social costs lower bound']], fontsize=10, padding=2)
     bars2 = ax1.bar(x + width/2, co2_df['CO2 social costs upper bound'], width=width, label='Upper bound ($200)', color='blue', edgecolor='black')
-    ax1.bar_label(bars2, labels=[fmt_dollar(v) for v in co2_df['CO2 social costs upper bound']], fontsize=6, padding=2)
+    ax1.bar_label(bars2, labels=[fmt_money_rounded(v) for v in co2_df['CO2 social costs upper bound']], fontsize=10, padding=2)
     ax1.set_xlabel('Model name')
     ax1.set_ylabel('Social cost of total emissions (in USD)')
     ax1.set_title('Social cost of estimated total monthly\ncarbon emissions for proprietary models')
     ax1.set_xticks(x, labels, ha='right', rotation=10)
+    ax1.tick_params(axis='x', labelsize=10)
+    ax1.yaxis.set_major_formatter(ticker.FuncFormatter(lambda v, _: fmt_money_rounded(v)))
     ax1.legend()
+    ax1.margins(y=0.2)
     plt.tight_layout()
     plt.show()
 
-    #plot opportunity costs of proprietary models CO2 emissions in one figure with two subplots
+    #Graph: Opportunity costs of proprietary model CO2 emissions — LHR-JFK flights (left) and Czech residents (right)
     fig2, (ax2, ax3) = plt.subplots(1, 2, figsize=(14, 6))
 
     bars3 = ax2.bar(x, co2_df['CO2 opp cost one-way LHR to JFK flights (British Airways)'], width=width, color='green', edgecolor='black')
-    ax2.bar_label(bars3, labels=[f"{math.floor(v):,}" for v in co2_df['CO2 opp cost one-way LHR to JFK flights (British Airways)']], fontsize=6, padding=2)
+    ax2.bar_label(bars3, labels=[f"{math.floor(v):,}" for v in co2_df['CO2 opp cost one-way LHR to JFK flights (British Airways)']], fontsize=10, padding=2)
     ax2.set_xlabel('Model name')
     ax2.set_ylabel('Number of one-way LHR to JFK flights (British Airways)')
     ax2.set_xticks(x, labels, ha='right', rotation=10)
+    ax2.tick_params(axis='x', labelsize=10)
     ax2.set_title('Opportunity cost of proprietary models CO2 emissions\n(one-way LHR to JFK flights (British Airways))')
 
     bars4 = ax3.bar(x, co2_df['CO2 opp cost czech residents'], width=width, color='orange', edgecolor='black')
-    ax3.bar_label(bars4, labels=[f"{math.floor(v):,}" for v in co2_df['CO2 opp cost czech residents']], fontsize=6, padding=2)
+    ax3.bar_label(bars4, labels=[f"{math.floor(v):,}" for v in co2_df['CO2 opp cost czech residents']], fontsize=10, padding=2)
     ax3.set_xlabel('Model name')
     ax3.set_ylabel('Number of Czech residents')
     ax3.set_title('Opportunity costs of proprietary models CO2 emissions\n(equivalent Czech resident annual emissions)')
     ax3.set_xticks(x, labels, ha='right', rotation=10)
+    ax3.tick_params(axis='x', labelsize=10)
 
     plt.tight_layout()
     plt.show()
@@ -193,46 +216,35 @@ def proprietary_model_water(crop_prices_df: pd.DataFrame):
 
     water_df = pd.DataFrame(water_data)
 
-    #plot monthly water consumption in its own standalone bar chart
-    labels = ['ChatGPT, Mid 2025','Google AI Overviews (Gemini), Mid 2025']
-    x = np.arange(len(labels))
-    width = 0.5
-    plt.rcParams['axes.grid'] = False
-
-    fig1, ax1 = plt.subplots(figsize=(8, 6))
-    bars1 = ax1.bar(x, water_df['Water consumption (L)'], width=width, color='blue', edgecolor='black')
-    ax1.bar_label(bars1, labels=[f"{v:,.1f}" for v in water_df['Water consumption (L)']], fontsize=8, padding=2)
-    ax1.set_xlabel('Model name')
-    ax1.set_ylabel('Water consumption per month (L)')
-    ax1.set_title('Monthly water consumption of proprietary LLMs (L)')
-    ax1.set_xticks(x, labels, ha='right', rotation=10)
-    ax1.yaxis.set_major_formatter(ticker.FuncFormatter(lambda v, _: f"{v:,.0f}"))
-    plt.tight_layout()
-    plt.show()
-
     corn_price = crop_prices_df['Yearly Average in USD per metric ton (2025)'].iloc[0]
     banana_price = crop_prices_df["Yearly Average in USD per metric ton (2025)"].iloc[1]
     olive_oil_price = crop_prices_df["Yearly Average in USD per metric ton (2025)"].iloc[2]
     wheat_price = crop_prices_df['Yearly Average in USD per metric ton (2025)'].iloc[3]
 
-    econ_value_olive_oil = []
-    econ_value_corn = []
-    econ_value_wheat = []
-    econ_value_banana = []
+    econ_value_olive_oil = [v * olive_oil_price for v in water_df['Water opp cost olive oil (tons)']]
+    econ_value_corn = [v * corn_price for v in water_df['Water opp cost corn (tons)']]
+    econ_value_wheat = [v * wheat_price for v in water_df['Water opp cost wheat (tons)']]
+    econ_value_banana = [v * banana_price for v in water_df['Water opp cost banana (tons)']]
 
-    for v in water_df['Water opp cost olive oil (tons)']:
-        econ_value_olive_oil.append(v * olive_oil_price)
+    labels = ['ChatGPT, Mid 2025', 'Google AI Overviews (Gemini), Mid 2025']
+    x = np.arange(len(labels))
+    width = 0.5
+    plt.rcParams['axes.grid'] = False
 
-    for v in water_df['Water opp cost corn (tons)']:
-        econ_value_corn.append(v * corn_price)
+    #Graph: Monthly water consumption of proprietary LLMs (ChatGPT, Gemini)
+    fig1, ax1 = plt.subplots(figsize=(10, 7))
+    bars1 = ax1.bar(x, water_df['Water consumption (L)'], width=width, color='blue', edgecolor='black')
+    ax1.bar_label(bars1, labels=[fmt_count_rounded(v) for v in water_df['Water consumption (L)']], fontsize=10, padding=2)
+    ax1.set_xlabel('Model name')
+    ax1.set_ylabel('Water consumption per month (L)')
+    ax1.set_title('Monthly water consumption of proprietary LLMs (L)')
+    ax1.set_xticks(x, labels, ha='right', rotation=10)
+    ax1.tick_params(axis='x', labelsize=10)
+    ax1.yaxis.set_major_formatter(ticker.FuncFormatter(lambda v, _: fmt_count_rounded(v)))
+    ax1.margins(y=0.2)
+    plt.tight_layout()
+    plt.show()
 
-    for v in water_df['Water opp cost wheat (tons)']:
-        econ_value_wheat.append(v * wheat_price)
-
-    for v in water_df['Water opp cost banana (tons)']:
-        econ_value_banana.append(v * banana_price)
-
-    #group data by crop, with one bar per model within each crop group
     crops = ['Olive Oil', 'Corn', 'Wheat', 'Banana']
     model_colors = ['steelblue', 'tomato', 'mediumpurple']
     x_crops = np.arange(len(crops))
@@ -250,43 +262,47 @@ def proprietary_model_water(crop_prices_df: pd.DataFrame):
         water_df['Water opp cost wheat (tons)'].iloc[1],
         water_df['Water opp cost banana (tons)'].iloc[1],
     ]
-    opp_costs_combined = [a + b for a, b in zip(opp_costs_gpt, opp_costs_gemini)]
     econ_gpt = [econ_value_olive_oil[0], econ_value_corn[0], econ_value_wheat[0], econ_value_banana[0]]
     econ_gemini = [econ_value_olive_oil[1], econ_value_corn[1], econ_value_wheat[1], econ_value_banana[1]]
-    econ_combined = [a + b for a, b in zip(econ_gpt, econ_gemini)]
 
-    fig2, (ax_opp, ax_econ) = plt.subplots(1, 2, figsize=(18, 6))
+    #Graph: Opportunity costs of proprietary model water consumption by crop (metric tons)
+    fig2, ax_opp = plt.subplots(figsize=(12, 7))
 
-    bars_opp_gpt = ax_opp.bar(x_crops - width, opp_costs_gpt, width=width, label='ChatGPT, Mid 2025', color=model_colors[0], edgecolor='black')
-    ax_opp.bar_label(bars_opp_gpt, labels=[f"{v:,.1f}" for v in opp_costs_gpt], fontsize=7, padding=2)
-    bars_opp_gemini = ax_opp.bar(x_crops, opp_costs_gemini, width=width, label='Google AI Overviews (Gemini), Mid 2025', color=model_colors[1], edgecolor='black')
-    ax_opp.bar_label(bars_opp_gemini, labels=[f"{v:,.1f}" for v in opp_costs_gemini], fontsize=7, padding=2)
-    bars_opp_combined = ax_opp.bar(x_crops + width, opp_costs_combined, width=width, label='Combined (ChatGPT + Gemini)', color=model_colors[2], edgecolor='black')
-    ax_opp.bar_label(bars_opp_combined, labels=[f"{v:,.1f}" for v in opp_costs_combined], fontsize=7, padding=2)
-    ax_opp.set_xlabel('Crop')
-    ax_opp.set_ylabel('Opportunity cost (metric tons)')
-    ax_opp.set_title('Opportunity costs of proprietary model\nwater consumption by crop (metric tons)')
+    bars_opp_gpt = ax_opp.bar(x_crops - width/2, opp_costs_gpt, width=width, label='ChatGPT, Mid 2025', color=model_colors[0], edgecolor='black')
+    ax_opp.bar_label(bars_opp_gpt, labels=[fmt_count_rounded(v) for v in opp_costs_gpt], fontsize=12, padding=2)
+    bars_opp_gemini = ax_opp.bar(x_crops + width/2, opp_costs_gemini, width=width, label='Google AI Overviews (Gemini), Mid 2025', color=model_colors[1], edgecolor='black')
+    ax_opp.bar_label(bars_opp_gemini, labels=[fmt_count_rounded(v) for v in opp_costs_gemini], fontsize=12, padding=2)
+    ax_opp.set_xlabel('Crop', fontsize=14)
+    ax_opp.set_ylabel('Opportunity cost (metric tons)', fontsize=14)
+    ax_opp.set_title('Opportunity costs of proprietary model\nwater consumption by crop (metric tons)', fontsize=16)
     ax_opp.set_xticks(x_crops, crops)
-    ax_opp.legend()
+    ax_opp.tick_params(axis='both', labelsize=13)
+    ax_opp.legend(fontsize=12)
     ax_opp.margins(y=0.2)
-    ax_opp.yaxis.set_major_formatter(ticker.FuncFormatter(lambda v, _: f"{v:,.0f}"))
-
-    bars_econ_gpt = ax_econ.bar(x_crops - width, econ_gpt, width=width, label='ChatGPT, Mid 2025', color=model_colors[0], edgecolor='black')
-    ax_econ.bar_label(bars_econ_gpt, labels=[fmt_dollar(v) for v in econ_gpt], fontsize=7, padding=2)
-    bars_econ_gemini = ax_econ.bar(x_crops, econ_gemini, width=width, label='Google AI Overviews (Gemini), Mid 2025', color=model_colors[1], edgecolor='black')
-    ax_econ.bar_label(bars_econ_gemini, labels=[fmt_dollar(v) for v in econ_gemini], fontsize=7, padding=2)
-    bars_econ_combined = ax_econ.bar(x_crops + width, econ_combined, width=width, label='Combined (ChatGPT + Gemini)', color=model_colors[2], edgecolor='black')
-    ax_econ.bar_label(bars_econ_combined, labels=[fmt_dollar(v) for v in econ_combined], fontsize=7, padding=2)
-    ax_econ.set_xlabel('Crop')
-    ax_econ.set_ylabel('Economic value (USD)')
-    ax_econ.set_title('Monetized opportunity costs of proprietary model\nwater consumption by crop (USD)')
-    ax_econ.set_xticks(x_crops, crops)
-    ax_econ.legend()
-    ax_econ.margins(y=0.2)
-    ax_econ.yaxis.set_major_formatter(ticker.FuncFormatter(lambda v, _: f"${v:,.0f}"))
+    ax_opp.yaxis.set_major_formatter(ticker.FuncFormatter(lambda v, _: fmt_count_rounded(v)))
 
     plt.tight_layout()
     plt.show()
+
+    #Graph: Monetized opportunity costs of proprietary model water consumption by crop (USD)
+    fig3, ax_econ = plt.subplots(figsize=(12, 7))
+
+    bars_econ_gpt = ax_econ.bar(x_crops - width/2, econ_gpt, width=width, label='ChatGPT, Mid 2025', color=model_colors[0], edgecolor='black')
+    ax_econ.bar_label(bars_econ_gpt, labels=[fmt_money_rounded(v) for v in econ_gpt], fontsize=12, padding=2)
+    bars_econ_gemini = ax_econ.bar(x_crops + width/2, econ_gemini, width=width, label='Google AI Overviews (Gemini), Mid 2025', color=model_colors[1], edgecolor='black')
+    ax_econ.bar_label(bars_econ_gemini, labels=[fmt_money_rounded(v) for v in econ_gemini], fontsize=12, padding=2)
+    ax_econ.set_xlabel('Crop', fontsize=14)
+    ax_econ.set_ylabel('Economic value (USD)', fontsize=14)
+    ax_econ.set_title('Monetized opportunity costs of proprietary model\nwater consumption by crop (USD)', fontsize=16)
+    ax_econ.set_xticks(x_crops, crops)
+    ax_econ.tick_params(axis='both', labelsize=13)
+    ax_econ.legend(fontsize=12)
+    ax_econ.margins(y=0.2)
+    ax_econ.yaxis.set_major_formatter(ticker.FuncFormatter(lambda v, _: fmt_money_rounded(v)))
+
+    plt.tight_layout()
+    plt.show()
+
 
 #function for finding out which of the models form the datasets can be found in the downloads data
 def find_alike_models(cols, df1: pd.DataFrame, df2: pd.DataFrame):
@@ -307,18 +323,19 @@ def get_inference_labels():
             inference_labels.append(f'{scenario},{category}')
 
     return inference_labels
-    
+
 def clean_inference_data():
+    os.makedirs("graphs", exist_ok=True)
     #import csv files, clean the data
     downloads_data = pd.read_csv("top-models-by-downloads.csv")
     leaderboard_data = pd.read_csv("openllm_leaderboard.csv")
     crop_prices_df = pd.read_csv("global_price_of_crops.csv")
 
     downloads_data.rename(columns={"Model":"fullname"}, inplace=True)
-    
+
     co2_df = find_alike_models(["fullname", "CO2 cost (kg)"], downloads_data, leaderboard_data)
 
-    #create a new column in the main (cleaned) dataset 
+    #create a new column in the main (cleaned) dataset
     #this represents the average co2 cost per prompt for hugging face's analysis, since they ran benchmarks
     #that totaled 21,682 prompts of varying lengths and complexities in their openLLM leaderboard
     co2_df['Average CO2 cost (kg) per prompt'] = co2_df['CO2 cost (kg)'] / 21682
