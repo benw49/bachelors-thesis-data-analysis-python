@@ -6,27 +6,27 @@ import numpy as np
 from matplotlib import ticker
 
 
-# Rounds dollar values and avoids false precision (e.g. "$905,580.00" becomes "$906,000")
-# Values over $1M are shown as e.g. "$2.7M" for readability
+#rounds dollar values 
+#values over $1M are shown as e.g. "$2.7M" for readability
 def fmt_money_rounded(v):
     if abs(v) >= 1_000_000:
         return f"${v/1e6:.1f}M"
     elif abs(v) >= 10_000:
-        return f"${v/1000:.0f}K"
+        return f"${round(v, -3)/1000:.0f}K"
     elif abs(v) >= 1_000:
-        return f"${v/1000:.1f}K"
+        return f"${round(v, -2)/1000:.1f}K"
     else:
         return f"${v:,.0f}"
 
 
-# Same rounding logic as fmt_money_rounded but for non-dollar counts (liters, metric tons, etc.)
+#same rounding logic as fmt_money_rounded but for non-dollar counts (liters, metric tons, etc.)
 def fmt_count_rounded(v):
     if abs(v) >= 1_000_000:
         return f"{v/1e6:.1f}M"
     elif abs(v) >= 10_000:
-        return f"{v/1000:.0f}K"
+        return f"{round(v, -3)/1000:.0f}K"
     elif abs(v) >= 1_000:
-        return f"{v/1000:.1f}K"
+        return f"{round(v, -2)/1000:.1f}K"
     else:
         return f"{v:,.0f}"
 
