@@ -251,7 +251,7 @@ def clean_training_data():
     training_df_carbon = pd.read_csv("carbon_training_data.csv")
     training_df_water = pd.read_csv("water_training_data.csv")
     crop_prices_df = pd.read_csv("global_price_of_crops.csv")
-    training_df_carbon = training_df_carbon.drop(columns=['Source',
+    training_df_carbon = training_df_carbon.drop(columns=['Source for GPU data, GPU hours',
      'Total CO2','GPU Used','Source for PUE value']
     )
 
