@@ -325,7 +325,6 @@ def get_inference_labels():
     return inference_labels
 
 def clean_inference_data():
-    os.makedirs("graphs", exist_ok=True)
     #import csv files, clean the data
     downloads_data = pd.read_csv("top-models-by-downloads.csv")
     leaderboard_data = pd.read_csv("openllm_leaderboard.csv")

@@ -246,7 +246,6 @@ def plot_training_data_water(water_df: pd.DataFrame, crop_prices_df: pd.DataFram
 
 
 def clean_training_data():
-    os.makedirs("graphs", exist_ok=True)
     #import training data, remove unused columns, then call plotting functions
     training_df_carbon = pd.read_excel("training_dataset.xlsx", sheet_name="Carbon Emissions")
     training_df_water = pd.read_excel("training_dataset.xlsx", sheet_name="Water Consumption")
