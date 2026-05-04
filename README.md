@@ -38,7 +38,9 @@ The analysis is split into two parts:
 ## Usage
 
 Ensure the following data files are present in the `main/` directory:
-- `training_dataset.xlsx` — training CO2 and water consumption data
+- `carbon_training_data.csv` — training CO2 emissions data
+- `water_training_data.csv` — training water consumption data
+- `energy_mixes.csv`
 - `global_price_of_crops.csv`
 - `top-models-by-downloads.csv`
 - `openllm_leaderboard.csv`
